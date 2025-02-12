@@ -9,553 +9,110 @@
     \item наличие стандартной библиотеки шаблонов.
 \end{itemize}
 
-В качестве среды разработки была выбрана программа $QT Creator$, так как в ней есть возможность быстрого создания интерфейса с помощью расширения $QTDesign$.
+В качестве среды разработки была выбрана программа $QT Creator$. Для разработки интерфейса было использовано расширение $QTDesign$.
 
-\section{Реализация алгоритмов}
+\section{Описание используемых классов}
 
-\begin{center}
-	\captionsetup{justification=raggedright,singlelinecheck=off}
-	\begin{lstlisting}[caption=Реализация алгоритма Z-буфера]
-void SceneDrawer::zBufferAlgorithm(std::vector<Facet> &facets, std::vector<Vertex> &vertices,
-Eigen::Matrix4f &transMat, size_t color, SceneInf *scene, size_t bufWidth,
-size_t bufHeight)
-{
-	std::array<Dot3D, 3> dotsArr;
-	Eigen::Matrix4f toCenter;
-	toCenter << 1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	-X_CENTER, -Y_CENTER, -BASE_Z - 5, 1;
+В результате разработки программы были реализованы следующие классы:
+\begin{itemize}[label=---]
+	\item \texttt{AddLight} — класс, предоставляющий интерфейс для добавления источника света на сцену.
 	
-	Eigen::Matrix4f backToStart;
-	backToStart << 1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	X_CENTER, Y_CENTER, BASE_Z + 5, 1;
+	\item \texttt{BaseMotherboardConfig} — абстрактный класс, содержащий общую конфигурацию компонентов материнских плат.
 	
-	Eigen::Matrix4f dotTransMat;
-	dotTransMat = toCenter * transMat * backToStart;
-	std::vector<Eigen::Matrix4f> illumDotMatrices;
+	\item \texttt{ATXMotherboardConfig} — производный класс от базового класса \newline \texttt{BaseMotherboardConfig}, инкапсулирующий конфигурацию компонентов материнских плат формата ATX.
 	
-	for (size_t i = 0; i < scene->getLightNum(); i++)
-	{
-		illumDotMatrices.push_back(toCenter * scene->getLight(i).getTransMat() * backToStart);
-	}
+	\item \texttt{MicroATXMotherboardConfig} — производный класс от базового класса \newline \texttt{BaseMotherboardConfig}, инкапсулирующий конфигурацию компонентов материнских плат формата Micro-ATX.
 	
-	for (size_t curFaceNum = 0; curFaceNum < facets.size(); curFaceNum++)
-	{
-		Eigen::MatrixXf coordinatesVec(3, 4);
-		
-		std::vector<size_t> curDots = facets.at(curFaceNum).getVertices();
-		dotsArr[0] = vertices.at(curDots.at(0)).getPosition();
-		dotsArr[1] = vertices.at(curDots.at(1)).getPosition();
-		dotsArr[2] = vertices.at(curDots.at(2)).getPosition();
-		
-		coordinatesVec <<
-		dotsArr[0].getXCoordinate(), dotsArr[0].getYCoordinate(), dotsArr[0].getZCoordinate(), 1,
-		dotsArr[1].getXCoordinate(), dotsArr[1].getYCoordinate(), dotsArr[1].getZCoordinate(), 1,
-		dotsArr[2].getXCoordinate(), dotsArr[2].getYCoordinate(), dotsArr[2].getZCoordinate(), 1;
-		
-		coordinatesVec *= dotTransMat;
-		
-		dotsArr[0] =
-		Dot3D(coordinatesVec(0, 0), coordinatesVec(0, 1), coordinatesVec(0, 2));
-		dotsArr[1] =
-		Dot3D(coordinatesVec(1, 0), coordinatesVec(1, 1), coordinatesVec(1, 2));
-		dotsArr[2] =
-		Dot3D(coordinatesVec(2, 0), coordinatesVec(2, 1), coordinatesVec(2, 2));
-		
-		if (dotsArr[0].getYCoordinate() > dotsArr[1].getYCoordinate())
-		{
-			std::swap(dotsArr[0], dotsArr[1]);
-		}
-		if (dotsArr[0].getYCoordinate() > dotsArr[2].getYCoordinate())
-		{
-			std::swap(dotsArr[0], dotsArr[2]);
-		}
-		if (dotsArr[1].getYCoordinate() > dotsArr[2].getYCoordinate())
-		{
-			std::swap(dotsArr[1], dotsArr[2]);
-		}
-		
-		int x1 = round(dotsArr[0].getXCoordinate());
-		int x2 = round(dotsArr[1].getXCoordinate());
-		int x3 = round(dotsArr[2].getXCoordinate());
-		
-		double z1 = dotsArr[0].getZCoordinate();
-		double z2 = dotsArr[1].getZCoordinate();
-		double z3 = dotsArr[2].getZCoordinate();
-		
-		int y1 = round(dotsArr[0].getYCoordinate());
-		int y2 = round(dotsArr[1].getYCoordinate());
-		int y3 = round(dotsArr[2].getYCoordinate());
-		
-		for (int curY = (y1 < 0) ? 0 : y1; curY < ((y2 >= (int) bufHeight) ? (int) bufHeight - 1 : y2); curY++)
-		{
-			double aInc = 0;
-			if (y1 != y2)
-			{
-				aInc = (double) (curY - y1) / (y2 - y1);
-			}
-			
-			double bInc = 0;
-			if (y1 != y3)
-			{
-				bInc = (double) (curY - y1) / (y3 - y1);
-			}
-			
-			int xA = round(x1 + (x2 - x1) * aInc);
-			int xB = round(x1 + (x3 - x1) * bInc);
-			double zA = z1 + (z2 - z1) * aInc;
-			double zB = z1 + (z3 - z1) * bInc;
-			
-			if (xA > xB)
-			{
-				std::swap(xA, xB);
-				std::swap(zA, zB);
-			}
-			
-			if (xA < 0)
-			{
-				xA = 0;
-			}
-			if (xB >= (int) bufWidth)
-			{
-				xB = (int) bufWidth - 1;
-			}
-			
-			for (int curX = xA; curX <= xB; curX++)
-			{
-				double curZ = zA + (zB - zA) * (curX - xA) / (xB - xA);
-				
-				if (curZ >= depthBuffer.at(curX).at(curY))
-				{
-					short visible = 0;
-					Eigen::MatrixXf newCoordinates(1, 4);
-					
-					for (size_t i = 0; i < scene->getLightNum() && !visible; i++)
-					{
-						newCoordinates << curX, curY, curZ, 1;
-						
-						newCoordinates *= illumDotMatrices.at(i);
-						std::vector<std::vector<double>> *shadowMap =
-						&scene->getLight(i).getShadowMap();
-						
-						int x = round(newCoordinates(0, 0));
-						int y = round(newCoordinates(0, 1));
-						
-						if (x < (int) shadowMap->size() && x >= 0 &&
-						y < (int) shadowMap->at(0).size() && y >= 0 &&
-						std::fabs(shadowMap->at(x).at(y) - newCoordinates(0, 2)) < 2)
-						visible = 1;
-					}
-					depthBuffer.at(curX).at(curY) = curZ;
-					if (scene->getLightNum())
-					{
-						borderBuffer.at(curX).at(curY) = color + visible;
-					}
-					else
-					{
-						borderBuffer.at(curX).at(curY) = color + 1;
-					}
-				}
-			}
-		}
-		for (int curY = (y2 < 0) ? 0 : y2; curY <= ((y3 >= (int) bufHeight) ? (int) bufHeight - 1 : y3); curY++)
-		{
-			double aInc = 0;
-			if (y2 != y3)
-			{
-				aInc = (double) (curY - y2) / (y3 - y2);
-			}
-			
-			double bInc = 0;
-			if (y1 != y3)
-			{
-				bInc = (double) (curY - y1) / (y3 - y1);
-			}
-			
-			int xA = round(x2 + (x3 - x2) * aInc);
-			int xB = round(x1 + (x3 - x1) * bInc);
-			double zA = z2 + (z3 - z2) * aInc;
-			double zB = z1 + (z3 - z1) * bInc;
-			
-			if (xA > xB)
-			{
-				std::swap(xA, xB);
-				std::swap(zA, zB);
-			}
-			
-			if (xA < 0)
-			{
-				xA = 0;
-			}
-			if (xB >= (int) bufWidth)
-			{
-				xB = (int) bufWidth - 1;
-			}
-			
-			for (int curX = xA; curX <= xB; curX++)
-			{
-				double curZ = zA + (zB - zA) * (curX - xA) / (xB - xA);
-				
-				if (curZ >= depthBuffer.at(curX).at(curY))
-				{
-					short is_visible = 0;
-					Eigen::MatrixXf newCoordinates(1, 4);
-					for (size_t i = 0; i < scene->getLightNum() && !is_visible; i++)
-					{
-						newCoordinates << curX, curY, curZ, 1;
-						
-						newCoordinates *= illumDotMatrices.at(i);
-						std::vector<std::vector<double>> *shadowMap =
-						&scene->getLight(i).getShadowMap();
-						int x = round(newCoordinates(0, 0));
-						int y = round(newCoordinates(0, 1));
-						
-						if (x < (int) shadowMap->size() && x >= 0 &&
-						y < (int) shadowMap->at(0).size() && y >= 0 &&
-						std::fabs(shadowMap->at(x).at(y) - newCoordinates(0, 2)) < 2)
-						is_visible = 1;
-					}
-					depthBuffer.at(curX).at(curY) = curZ;
-					if (scene->getLightNum())
-					{
-						borderBuffer.at(curX).at(curY) = color + is_visible;
-					}
-					else
-					borderBuffer.at(curX).at(curY) = color + 1;
-				}
-			}
-		}
-		bordersForPolygon(x1, y1, z1, x2, y2, z2);
-		bordersForPolygon(x1, y1, z1, x3, y3, z3);
-		bordersForPolygon(x2, y2, z2, x3, y3, z3);
-	}
-}
-	\end{lstlisting}
-\end{center}
-
-
-
-\begin{center}
-	\captionsetup{justification=raggedright,singlelinecheck=off}
-	\begin{lstlisting}[caption=Реализация алгоритма Z-буфера для теней]
-void SceneDrawer::computeShadowZBuffer(std::vector<Facet> &facets, std::vector<Vertex> &vertices,
-Eigen::Matrix4f &transMat, Light *illum, size_t bufWidth, size_t bufHeight)
-{
-	std::array<Dot3D, 3> dotsArr;
-	Eigen::Matrix4f toCenter;
+	\item \texttt{MiniITXMotherboardConfig} — производный класс от базового класса \newline \texttt{BaseMotherboardConfig}, инкапсулирующий конфигурацию компонентов материнских плат формата Mini-ITX.
 	
-	toCenter << 1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	-X_CENTER, -Y_CENTER, -BASE_Z - 5, 1;
+	\item \texttt{ConfigManager} — класс, описывающий совместимость внешних компонентов (модули оперативной памяти, видеокарты, процессоры) с различными форматами материнских плат.
 	
-	Eigen::Matrix4f backToStart;
+	\item \texttt{CPUConfig} — класс, содержащий конфигурацию моделей процессоров.
 	
-	backToStart << 1, 0, 0, 0,
-	0, 1, 0, 0,
-	0, 0, 1, 0,
-	X_CENTER, Y_CENTER, BASE_Z + 5, 1;
+	\item \texttt{SceneDrawer} — класс, ответственный за отрисовку сцены, управление буферами глубины и кадра.
 	
-	std::vector<std::vector<double>> *shadowMap = &illum->getShadowMap();
-	Eigen::Matrix4f illumMat = illum->getTransMat();
+	\item \texttt{Facade} — класс, реализующий фасадный паттерн для обеспечения взаимодействия пользователя с программными компонентами.
 	
-	Eigen::Matrix4f dotTransMat = toCenter * transMat * illumMat * backToStart;
+	\item \texttt{Facet} — класс, определяющий грань через список ее вершин.
 	
-	for (size_t curFaceNum = 0; curFaceNum < facets.size(); curFaceNum++)
-	{
-		Eigen::MatrixXf coordinatesVec(3, 4);
-		
-		std::vector<size_t> curDots = facets.at(curFaceNum).getVertices();
-		dotsArr[0] = vertices.at(curDots.at(0)).getPosition();
-		dotsArr[1] = vertices.at(curDots.at(1)).getPosition();
-		dotsArr[2] = vertices.at(curDots.at(2)).getPosition();
-		
-		coordinatesVec <<
-		dotsArr[0].getXCoordinate(), dotsArr[0].getYCoordinate(), dotsArr[0].getZCoordinate(), 1,
-		dotsArr[1].getXCoordinate(), dotsArr[1].getYCoordinate(), dotsArr[1].getZCoordinate(), 1,
-		dotsArr[2].getXCoordinate(), dotsArr[2].getYCoordinate(), dotsArr[2].getZCoordinate(), 1;
-		
-		coordinatesVec *= dotTransMat;
-		dotsArr[0] =
-		Dot3D(coordinatesVec(0, 0), coordinatesVec(0, 1), coordinatesVec(0, 2));
-		dotsArr[1] =
-		Dot3D(coordinatesVec(1, 0), coordinatesVec(1, 1), coordinatesVec(1, 2));
-		dotsArr[2] =
-		Dot3D(coordinatesVec(2, 0), coordinatesVec(2, 1), coordinatesVec(2, 2));
-		
-		if (dotsArr[0].getYCoordinate() > dotsArr[1].getYCoordinate())
-		std::swap(dotsArr[0], dotsArr[1]);
-		if (dotsArr[0].getYCoordinate() > dotsArr[2].getYCoordinate())
-		std::swap(dotsArr[0], dotsArr[2]);
-		if (dotsArr[1].getYCoordinate() > dotsArr[2].getYCoordinate())
-		std::swap(dotsArr[1], dotsArr[2]);
-		
-		int x1 = round(dotsArr[0].getXCoordinate());
-		int x2 = round(dotsArr[1].getXCoordinate());
-		int x3 = round(dotsArr[2].getXCoordinate());
-		
-		double z1 = dotsArr[0].getZCoordinate();
-		double z2 = dotsArr[1].getZCoordinate();
-		double z3 = dotsArr[2].getZCoordinate();
-		
-		int y1 = round(dotsArr[0].getYCoordinate());
-		int y2 = round(dotsArr[1].getYCoordinate());
-		int y3 = round(dotsArr[2].getYCoordinate());
-		
-		//#pragma omp parallel for
-		for (int curY = (y1 < 0) ? 0 : y1;
-		curY < ((y2 >= (int) bufHeight) ? (int) bufHeight - 1 : y2); curY++)
-		{
-			double aInc = 0;
-			if (y1 != y2)
-			aInc = (double) (curY - y1) / (y2 - y1);
-			
-			double bInc = 0;
-			if (y1 != y3)
-			bInc = (double) (curY - y1) / (y3 - y1);
-			
-			int xA = round(x1 + (x2 - x1) * aInc);
-			int xB = round(x1 + (x3 - x1) * bInc);
-			double zA = z1 + (z2 - z1) * aInc;
-			double zB = z1 + (z3 - z1) * bInc;
-			
-			if (xA > xB)
-			{
-				std::swap(xA, xB);
-				std::swap(zA, zB);
-			}
-			
-			if (xA < 0)
-			xA = 0;
-			if (xB >= (int) bufWidth)
-			xB = (int) bufWidth - 1;
-			
-			interRowIntoShadowMap(shadowMap, xA, xB, zA, zB, curY);
-		}
-		
-		//#pragma omp parallel for
-		for (int curY = (y2 < 0) ? 0 : y2;
-		curY <= ((y3 >= (int) bufHeight) ? (int) bufHeight - 1 : y3); curY++)
-		{
-			double aInc = 0;
-			if (y2 != y3)
-			aInc = (double) (curY - y2) / (y3 - y2);
-			
-			double bInc = 0;
-			if (y1 != y3)
-			bInc = (double) (curY - y1) / (y3 - y1);
-			
-			int xA = round(x2 + (x3 - x2) * aInc);
-			int xB = round(x1 + (x3 - x1) * bInc);
-			double zA = z2 + (z3 - z2) * aInc;
-			double zB = z1 + (z3 - z1) * bInc;
-			
-			if (xA > xB)
-			{
-				std::swap(xA, xB);
-				std::swap(zA, zB);
-			}
-			
-			if (xA < 0)
-			xA = 0;
-			if (xB >= (int) bufWidth)
-			xB = (int) bufWidth - 1;
-			
-			interRowIntoShadowMap(shadowMap, xA, xB, zA, zB, curY);
-		}
-	}
-}
-	\end{lstlisting}
-\end{center}
+	\item \texttt{GPUConfig} — класс, содержащий конфигурацию моделей видеокарт.
+	
+	\item \texttt{Light} — класс, описывающий источник света, включая его положение и параметры теневой карты.
+	
+	\item \texttt{Vertex} — класс, представляющий вершину. Хранит координаты вершины и список граней, в которых она участвует.
+	
+	\item \texttt{Dot3D} — класс для описания точки в трехмерном пространстве, хранящий ее координаты.
+	
+	\item \texttt{ObjectDelete} — класс, предоставляющий интерфейс для удаления внешних компонентов.
+	
+	\item \texttt{PolygonModel} — класс, хранящий полигональную модель, включая списки вершин и граней, а также информацию о размерах модели и ее положении на сцене.
+	
+	\item \texttt{SceneInf} — класс, содержащий информацию о текущем состоянии сцены: выбранный формат материнской платы, список интегрированных и добавленных пользователем компонентов, а также параметры освещения.
+\end{itemize}
 
 
-% При написании программного продукта был выбран язык C++. Это обусловлено следующими факторами.
+\section{Структура программного комплекса}
 
-% \begin{itemize}
-% 	\item C++ обладает высокой вычислительной производительностью, что очень важно для выполнения поставленной задачи.
-% 	\item Данный язык поддерживает объектно-ориентированную парадигму программирования. Благодаря чему можно приводить объекты сцены к объектам классов, а также пользоваться шаблонами проектирования. Это дает возможность эффективного написания код.
-% 	\item Данный язык преподавался в рамках курса Объектно-Ориентированного Программирования.
-% 	\item Доступность. Для С++ существует большое количество учебной литературы.
-% \end{itemize}
+Программа должна обеспечить выполнение следующих функций:
+\begin{itemize}[label=---]
+	\item создание виртуальной сцены для моделирования и визуализации материнских плат;
+	\item добавление на сцену компонентов материнских плат (процессора, видеокарт, модулей оперативной памяти) с возможностью выбора разъёма из расположения;
+	\item перемещение, поворот и масштабирование сцены с расположенными на ней компонентами;
+	\item добавление источника света для отображения теней.
+\end{itemize}
 
-% При написании программы будет задействована среда разработки QT Creator. Данный выбор обусловлен следующими факторами.
+В интерфейсе программы должны присутствовать следующие модули:
+\begin{enumerate}[label=\arabic*)]
+	\item Модуль для отрисовки сцены:
+	\begin{itemize}[label=---]
+		\item выпадающий список для выбора формата материнской платы, позволяющий пользователю выбрать формат платы (ATX, Micro-ATX, Mini-ITX);
+		\item кнопка для создания новой сцены, инициирующая процесс визуализации конфигурации  материнской платы выбранного формата;
+		\item панель для отображения трехмерной модели материнской платы;
+	\end{itemize}
+	\item Модуль для работы с сценой:
+	\begin{itemize}[label=---]
+		\item инструменты для перемещения сцены;
+		\item инструменты для поворота сцены;
+		\item инструменты для масштабирования сцены.
+	\end{itemize}
+	\item Модуль для работы с объектами на сцене:
+	\begin{itemize}[label=---]
+		\item списки доступных компонентов (модулей оперативной памяти, видеокарт и процессоров), совместимых с выбранным форматом материнской платы;
+		\item возможность выбора разъема для каждого компонента в зависимости от выбранного формата материнской платы для корректное расположение компонентов;
+		\item кнопки для добавления компонентов на сцену и их удаления;
+		\item инструменты для изменения цвета добавленных компонентов.
+	\end{itemize}
+\end{enumerate}
 
-% \begin{itemize}
-% 	\item Основы работы с данной средой разработки изучались в рамках курса Программирования на Си.
-% 	\item QT Creator позволяет работать с расширением Qt Design, которое позволит создать удобный и надежный интерфейс для программного продукта в сжатые сроки.
-% \end{itemize}
+На рисунке \ref{img:componentdiagram} представлена диаграмма компонентов, которая иллюстрирует взаимосвязи и зависимости между различными модулями и компонентами программы. Диаграмма демонстрирует архитектурную структуру системы, включая основные функциональные блоки и их взаимодействия.
 
-% \clearpage
+\imgScale{0.43}{componentdiagram}{Диаграмма компонентов}
+\newpage
 
-% \section{Структура реализуемых классов}
+\section{Интерфейс программы}
+\imgScale{0.25}{i-main}{Основное окно программы}
+\imgScale{0.50}{i-motherboard}{Раздел интерфейса для управления моделью материнской платы}
+\imgScale{0.50}{i-cpu}{Раздел интерфейса для выбора процессора}
+\imgScale{0.50}{i-cpu-confirm}{Диалоговое окно подверждения добавления процессора}
+\imgScale{0.50}{i-ram}{Раздел интерфейса для установки модулей оперативной памяти}
+\imgScale{0.50}{i-ram-socket-choose}{Раздел интерфейса для установки модулей оперативной памяти}
+\imgScale{0.50}{i-gpu}{Раздел интерфейса для установки модулей оперативной памяти}
+\imgScale{0.50}{i-gpu-socket-choose}{Раздел интерфейса для установки модулей оперативной памяти}
+\FloatBarrier
 
-% На рисунках \ref{fig:scheme_1} - \ref{fig:scheme_2} представлена структура реализуемых классов.
+\section{Руководство пользователя}
+Данное руководство описывает порядок работы с программой для визуализации трёхмерных моделей материнских плат. Ниже описаны основные шаги работы с разработанной программой.
 
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.6]{img/scheme_1.png}
-% 	\caption{Структура классов Dot3D, Vertex, Facet, PolModel, Illuminant}
-% 	\label{fig:scheme_1}
-% \end{figure} 
-
-% \begin{itemize}
-% 	\item \textbf{Dot3D} -- класс точки трехмерного пространства. Хранит координаты в
-% 	пространстве, владеет методами преобразований точки.
-% 	\item \textbf{Vertex} -- класс вершины. Хранит координаты точки вершины и номера граней, в которых она задействована.
-% 	\item \textbf{Facet} -- класс грани. Хранит номера задействованных в грани вершин.
-% 	\item \textbf{PolModel} -- класс полигональной модели. Хранит множество вершин и граней, образующих модель, ее имя и координаты ячейки, размеры модели и ось, вдоль которой она расположена. Владеет методами перемещения и вращения по оси Z модели.
-% 	\item \textbf{Illuminant} -- класс источника света. Хранит теневую карту источника, матрицу преобразований и соответствующие ей углы для перемещения текущей точки обзора в точку размещения источника. Владеет методом очистки собственной теневой карты.
-% \end{itemize}
-
-% \clearpage
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.6]{img/scheme_2.png}
-% 	\caption{Структура классов CellScene, Drawer, UsageFacade, PlaceHouseChooser, PlaceTreeChooser, PlaceRoadChooser, PlaceCarChooser, MainWindow, sizeChooser, moveChooser, illuminantPlaceChooser, ObjectChanger, ObjectHangman}
-% 	\label{fig:scheme_2}
-% \end{figure} 
-
-% \clearpage
-
-% \begin{itemize}
-% 	\item \textbf{CellScene} -- класс рабочей области сцены. Хранит длину и ширину сцены, модель сцены, на которой размещаются другие объекты, матрицу преобразований для перехода в текущую точку наблюдения, множество моделей интерьера и источников света, размещенных на сцене, и их кол-во, а также точку центра выполнения преобразований. Еще в этом классе хранится матрица использованных клеток сцены. Владеет методами выполнения преобразований над сценой, построения области размещения моделей, добавления и удаления объектов и источников света, отмечания и отчищения занятых клеток в матрице использованных клеток сцены.
-% 	\item \textbf{UsageFacade} -- класс, отвечающий за взаимодействие пользователя с программным обеспечением. Хранит формируемую сцену и класс, отвечающий за растеризацию сцены (наложение сетки, каждая из ячеек которой обрабатывается особым образом). Владеет методами добавления моделей на сцену и преобразований сцены.
-% 	\item \textbf{Drawer} -- класс, отвечающий за растеризацию сцены. Хранит буфер кадра и буфер глубины. Владеет методами алгоритма теневого z-буфера и формирования объекта для отображения рисунка в главном приложении.
-% 	\item \textbf{PlaceHouseChooser} -- класс, связанный с интерфейсом выбора расположения дома (выбора начальной точки модели, ее длины, ширины и высоты).
-% 	\item \textbf{PlaceTreeChooser} -- класс, связанный с интерфейсом выбора расположения дерева (выбора начальной точки модели).
-% 	\item \textbf{PlaceRoadChooser} -- класс, связанный с интерфейсом выбора расположения дороги (выбора начальной точки модели, а также ее ориентации в пространстве).
-%  	\item \textbf{PlaceCarChooser} -- класс, связанный с интерфейсом выбора расположения машины (выбора начальной точки модели, а также ее ориентации в пространстве).
-% 	\item \textbf{MainWindow} -- точка входа в программу.
-% 	\item \textbf{SizeChooser} -- класс, связанный с интерфейсов выбора размера сцены. Хранит в себе значений длины и ширины создаваемой сцены.
-% 	\item \textbf{moveChooser} -- класс, связанный с интерфейсом выбора нового расположения модели (выбора новой начальной точки модели).
-% 	\item \textbf{IlluminantPlaceChooser} -- класс, связанный с интерфейсом выбора расположения добавляемого источника света. Хранит углы поворота относительно осей X и Y для перехода из точки наблюдения в точку расположения источника света.
-% 	\item \textbf{ObjectChanger} -- класс, связанный с интерфейсом перемещения объектов по сцене. Хранит фасад, с которым в данный момент работает. Владеет методом изменения модели и методом пересчёта номеров моделей на сцене.
-% 	\item \textbf{ObjectHangman} -- класс, связанный с интерфейсом удаления объектов со сцены. Хранит сцену, с которой в данный момент работает. Владеет методом пересчёта номеров моделей на сцене.
-% \end{itemize}
+\begin{enumerate}
+	\item Для начала работы с программой необходимо выбрать формат материнской платы и добавить модель выбранного формата на сцену.
+	\item Пользователю предоставляется возможность добавления следующих компонентов в соответствующие разъёмы на материнской плате выбранной конфигурации: процессор, модули оперативной памяти, видеокарты.
+	\item Для добавления процессора необходимо выбрать тип процессора, совместимый с конфигурацией выбранного формата материнской платы, и подтвердить данное действие.
+	\item Для установки модуля оперативной памяти необходимо выбрать тип памяти, совместимый с конфигурацией выбранного формата материнской платы, указать разъём, в который модуль будет установлен, и подтвердить его добавление.
+	\item Аналогично, для добавления видеокарты следует выбрать тип видеокарты, соответствующий конфигурации материнской платы, определить разъём для установки и подтвердить данное действие.
+	\item Также предусмотрены функции для удаления и изменения цвета добавленных компонентов.
+	\item Предусмотрена функциональность добавления источника света, что позволяет изменять визуальные характеристики сцены.
+	\item В программе реализованы инструменты для перемещения, вращения и масштабирования модели материнской платы.
+\end{enumerate}
 
 
-% \section{Сведения о модулях программы}
 
-% \begin{itemize}
-% 	\item \textbf{main.cpp} -- главная точка входа в приложение;
-% 	\item \textbf{mainwindow.cpp, mainwindow.h} -- описание и реализация главного окна приложения;
-% 	\item \textbf{mainwindow.ui} -- форма пользовательского интерфейса главного окна приложения;
-% 	\item \textbf{placechooser.cpp, placechooser.hpp} -- описание и реализация классов выбора расположения моделей ($PlaceHouseChooser$, $PlaceTreeChooser$, $PlaceRoadChooser$, $PlaceCarChooser$);
-% 	\item \textbf{placehousechooser.ui} -- форма пользовательского интерфейса класс\linebreak $PlaceHouseChooser$;
-% 	\item \textbf{placetreechooser.ui} -- форма пользовательского интерфейса класса\linebreak $PlaceTreeChooser$;
-% 	\item \textbf{placeroadсhooser.ui} -- форма пользовательского интерфейса класса\linebreak $PlaceRoadChooser$;
-% 	\item \textbf{placecarсhooser.ui} -- форма пользовательского интерфейса класса\linebreak $PlaceCarChooser$;
-% 	\item \textbf{sizechooser.cpp, sizechooser.hpp} -- описание и реализация класса\linebreak $SizeChooser$;
-% 	\item \textbf{sizechooser.ui} -- форма пользовательского интерфейса класса\linebreak $SizeChooser$;
-% 	\item \textbf{illuminantplacechooser.cpp, illuminantplacechooser.hpp} -- описание и реализация класса $IlluminantPlaceChooser$;
-% 	\item \textbf{illuminantplacechooser.ui} -- форма пользовательского интерфейса класса $IlluminantPlaceChoooser$;
-% 	\item \textbf{movechooser.cpp, movechooser.hpp} -- описание и реализация класса\linebreak $moveChooser$;
-% 	\item \textbf{movechooser.ui} -- форма пользовательского интерфейса класса\linebreak $moveChooser$;
-% 	\item \textbf{objectchanger.cpp, objectchanger.hpp} -- описание и реализация класса $objectChanger$;
-% 	\item \textbf{objectchanger.ui} -- форма пользовательского интерфейса класса\linebreak $objectChanger$;
-% 	\item \textbf{objecthangman.cpp, objecthangman.hpp} -- описание и реализация класса $objectHangman$;
-% 	\item \textbf{objecthangman.ui} -- форма пользовательского интерфейса класса\linebreak $objectHangman$;
-% 	\item \textbf{additivemathelements.cpp, additivemathelements.hpp} -- описание и реализация классов математических объектов;
-% 	\item \textbf{objects.cpp, objects.hpp} -- описание и реализация класса полигональных моделей, источников света и сцены.
-% 	\item \textbf{usagefacade.cpp, usagefacade.hpp} -- описание и реализация классов $UsageFacade$ и $Drawer$;
-% \end{itemize}
-
-% \section{Интерфейс программного обеспечения}
-
-% На рисунке \ref{fig:interface} изображен интерфейс главного окна программного обеспечения.
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.5]{img/interface.png}
-% 	\caption{Интерфейс главного окна ПО}
-% 	\label{fig:interface}
-% \end{figure} 
-
-% Интерфейс главного окна ПО позволяет: 
-% \begin{itemize}
-% 	\item создавать сцену с объектами, масштабировать ее и перемещать в центр преобразования;
-% 	\item расставлять объекты на клетки сетки сцены, перемещать и удалять их, а также вращать объекты вместе с сценой.
-% \end{itemize}
-
-% На рисунке \ref{fig:scene} изображен интерфейс окна выбора размеров новой сцены. 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.55]{img/scene.png}
-% 	\caption{Интерфейс окна выбора размеров новой сцены}
-% 	\label{fig:scene}
-% \end{figure} 
-
-% На рисунках \ref{fig:house} - \ref{fig:car} изображены интерфейсы окон выбора размеров новых объектов. 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.55]{img/house.png}
-% 	\caption{Интерфейс окна выбора распоожения дома}
-% 	\label{fig:house}
-% \end{figure} 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.65]{img/tree.png}
-% 	\caption{Интерфейс окна выбора распоожения дерева}
-% 	\label{fig:tree}
-% \end{figure} 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.65]{img/road.png}
-% 	\caption{Интерфейс окна выбора распоожения дороги}
-% 	\label{fig:road}
-% \end{figure} 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.65]{img/car.png}
-% 	\caption{Интерфейс окна выбора распоожения машины}
-% 	\label{fig:car}
-% \end{figure} 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.65]{img/illuminant.png}
-% 	\caption{Интерфейс окна выбора распоожения источника света}
-% 	\label{fig:illuminant}
-% \end{figure} 
-
-% \clearpage
-
-% На рисунках \ref{fig:change1} - \ref{fig:change2} изображены интерфейсы окон для перемещения  объетов по сетке сцены. 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.57]{img/change1.png}
-% 	\caption{Интерфейс окна выбора перемещаемого объекта}
-% 	\label{fig:change1}
-% \end{figure} 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.56]{img/change2.png}
-% 	\caption{Интерфейс окна выбора нового расположения объекта}
-% 	\label{fig:change2}
-% \end{figure} 
-
-% \clearpage
-
-% На рисунке \ref{fig:deletion} изображен интерфейс окна для удаления объетов со сцены. 
-
-% \begin{figure}[h]
-% 	\centering
-% 	\includegraphics[scale=0.6]{img/deletion.png}
-% 	\caption{Интерфейс окна выбора удаляемого объекта}
-% 	\label{fig:deletion}
-% \end{figure} 
-
-\section{Вывод}
-
-В данном разделе были выбраны язык программирования и среда разработки, описаны  классы, представлены сведения о модулях программы.
